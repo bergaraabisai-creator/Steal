@@ -1,95 +1,64 @@
--- CONFIGURACIÓN
-local HttpService = game:GetService("HttpService")
+--[[  
+Souls Hub - Steal a Brainrot
+Funciones: ESP Brainrot Secret, Discord Webhook, Join automático
+]]
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
+-- CONFIGURA TU WEBHOOK
 local WEBHOOK_URL = "TU_WEBHOOK_DE_DISCORD_AQUI"
-local BRAINROTS_RAROS = {"Mythic", "Brainrot God", "Secret"}
-local INTERVALO = 5 -- segundos
-local ESP_ACTIVO = false
 
--- FUNCIONES
-local function crearESP(obj, color)
-    if not obj:IsA("BasePart") then return end
-    if obj:FindFirstChild("ESP") then return end
-    local bill = Instance.new("BillboardGui")
+-- Función para crear ESP
+local function createESP(part, name, price)
+    if part:FindFirstChild("ESP") then return end
+    local bill = Instance.new("BillboardGui", part)
     bill.Name = "ESP"
-    bill.Adornee = obj
-    bill.Size = UDim2.new(0,100,0,50)
+    bill.Size = UDim2.new(0,200,0,50)
+    bill.Adornee = part
     bill.AlwaysOnTop = true
-    local label = Instance.new("TextLabel", bill)
-    label.Size = UDim2.new(1,0,1,0)
-    label.BackgroundTransparency = 1
-    label.Text = obj.Name.." 🔹"
-    label.TextColor3 = color
-    label.TextScaled = true
-    bill.Parent = obj
+
+    local text = Instance.new("TextLabel", bill)
+    text.Size = UDim2.new(1,0,1,0)
+    text.BackgroundTransparency = 1
+    text.TextColor3 = Color3.fromRGB(0,255,0) -- verde brillante para Secret
+    text.TextStrokeTransparency = 0
+    text.Font = Enum.Font.SourceSansBold
+    text.TextScaled = true
+    text.Text = name.." | "..price.."/sec"
 end
 
-local function enviarWebhook(obj)
+-- Función para enviar Discord Webhook
+local function sendDiscord(name, price, placeId, jobId)
     local data = {
-        content = "Brainrot raro encontrado: "..obj.Name.." 🔹\nLugar: "..game.PlaceId.."\nServidor: "..tostring(game.JobId)
+        ["content"] = "",
+        ["embeds"] = {{
+            ["title"] = "Brainrot Secret detectado!",
+            ["description"] = "**Nombre:** "..name.."\n**Precio/sec:** "..price.."\n[Unirse al servidor](https://souls-hub-joiner.github.io/?placeId="..placeId.."&jobId="..jobId..")",
+            ["color"] = 65280 -- verde
+        }}
     }
+    local jsonData = HttpService:JSONEncode(data)
     pcall(function()
-        HttpService:PostAsync(WEBHOOK_URL, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
+        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
     end)
 end
 
-local function buscarBrainrots()
+-- Escaneo de Brainrots
+RunService.RenderStepped:Connect(function()
     for _, obj in pairs(Workspace:GetDescendants()) do
-        for _, raro in pairs(BRAINROTS_RAROS) do
-            if obj.Name == raro then
-                -- ESP según rareza
-                if ESP_ACTIVO then
-                    local color = Color3.fromRGB(0,0,255) -- Default azul
-                    if raro == "Brainrot God" then color = Color3.fromRGB(255,0,0) end
-                    if raro == "Secret" then color = Color3.fromRGB(255,215,0) end
-                    if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
-                        crearESP(obj.HumanoidRootPart, color)
-                    elseif obj:IsA("BasePart") then
-                        crearESP(obj, color)
-                    end
-                end
-                enviarWebhook(obj)
+        if obj:IsA("Model") and obj:FindFirstChild("Name") and obj:FindFirstChild("Price") then
+            local name = obj.Name
+            local price = obj.Price.Value
+            if name:lower():find("secret") then
+                createESP(obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"), name, price)
+                -- Obtener PlaceId y JobId del servidor actual
+                local placeId = game.PlaceId
+                local jobId = game.JobId
+                sendDiscord(name, price, placeId, jobId)
             end
         end
-    end
-end
-
--- GUI flotante
-local ScreenGui = Instance.new("ScreenGui", Players.LocalPlayer:WaitForChild("PlayerGui"))
-ScreenGui.Name = "BrainrotGuide"
-
-local Frame = Instance.new("Frame", ScreenGui)
-Frame.Size = UDim2.new(0,200,0,150)
-Frame.Position = UDim2.new(0,50,0,50)
-Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-Frame.Active = true
-Frame.Draggable = true
-
-local ESPButton = Instance.new("TextButton", Frame)
-ESPButton.Size = UDim2.new(1, -10, 0, 40)
-ESPButton.Position = UDim2.new(0,5,0,5)
-ESPButton.Text = "ESP: OFF"
-ESPButton.TextColor3 = Color3.fromRGB(255,255,255)
-ESPButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-ESPButton.MouseButton1Click:Connect(function()
-    ESP_ACTIVO = not ESP_ACTIVO
-    ESPButton.Text = "ESP: "..(ESP_ACTIVO and "ON" or "OFF")
-end)
-
-local FeedbackLabel = Instance.new("TextLabel", Frame)
-FeedbackLabel.Size = UDim2.new(1,-10,0,50)
-FeedbackLabel.Position = UDim2.new(0,5,0,50)
-FeedbackLabel.TextColor3 = Color3.fromRGB(255,255,255)
-FeedbackLabel.BackgroundTransparency = 1
-FeedbackLabel.Text = "Estado: Esperando..."
-
--- Loop principal
-spawn(function()
-    while true do
-        buscarBrainrots()
-        FeedbackLabel.Text = "Último scan: "..os.date("%H:%M:%S")
-        wait(INTERVALO)
     end
 end)
