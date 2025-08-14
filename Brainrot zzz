@@ -1,0 +1,95 @@
+-- CONFIGURACIÓN
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local WEBHOOK_URL = "TU_WEBHOOK_DE_DISCORD_AQUI"
+local BRAINROTS_RAROS = {"Mythic", "Brainrot God", "Secret"}
+local INTERVALO = 5 -- segundos
+local ESP_ACTIVO = false
+
+-- FUNCIONES
+local function crearESP(obj, color)
+    if not obj:IsA("BasePart") then return end
+    if obj:FindFirstChild("ESP") then return end
+    local bill = Instance.new("BillboardGui")
+    bill.Name = "ESP"
+    bill.Adornee = obj
+    bill.Size = UDim2.new(0,100,0,50)
+    bill.AlwaysOnTop = true
+    local label = Instance.new("TextLabel", bill)
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.Text = obj.Name.." 🔹"
+    label.TextColor3 = color
+    label.TextScaled = true
+    bill.Parent = obj
+end
+
+local function enviarWebhook(obj)
+    local data = {
+        content = "Brainrot raro encontrado: "..obj.Name.." 🔹\nLugar: "..game.PlaceId.."\nServidor: "..tostring(game.JobId)
+    }
+    pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, HttpService:JSONEncode(data), Enum.HttpContentType.ApplicationJson)
+    end)
+end
+
+local function buscarBrainrots()
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        for _, raro in pairs(BRAINROTS_RAROS) do
+            if obj.Name == raro then
+                -- ESP según rareza
+                if ESP_ACTIVO then
+                    local color = Color3.fromRGB(0,0,255) -- Default azul
+                    if raro == "Brainrot God" then color = Color3.fromRGB(255,0,0) end
+                    if raro == "Secret" then color = Color3.fromRGB(255,215,0) end
+                    if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") then
+                        crearESP(obj.HumanoidRootPart, color)
+                    elseif obj:IsA("BasePart") then
+                        crearESP(obj, color)
+                    end
+                end
+                enviarWebhook(obj)
+            end
+        end
+    end
+end
+
+-- GUI flotante
+local ScreenGui = Instance.new("ScreenGui", Players.LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.Name = "BrainrotGuide"
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0,200,0,150)
+Frame.Position = UDim2.new(0,50,0,50)
+Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Frame.Active = true
+Frame.Draggable = true
+
+local ESPButton = Instance.new("TextButton", Frame)
+ESPButton.Size = UDim2.new(1, -10, 0, 40)
+ESPButton.Position = UDim2.new(0,5,0,5)
+ESPButton.Text = "ESP: OFF"
+ESPButton.TextColor3 = Color3.fromRGB(255,255,255)
+ESPButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+ESPButton.MouseButton1Click:Connect(function()
+    ESP_ACTIVO = not ESP_ACTIVO
+    ESPButton.Text = "ESP: "..(ESP_ACTIVO and "ON" or "OFF")
+end)
+
+local FeedbackLabel = Instance.new("TextLabel", Frame)
+FeedbackLabel.Size = UDim2.new(1,-10,0,50)
+FeedbackLabel.Position = UDim2.new(0,5,0,50)
+FeedbackLabel.TextColor3 = Color3.fromRGB(255,255,255)
+FeedbackLabel.BackgroundTransparency = 1
+FeedbackLabel.Text = "Estado: Esperando..."
+
+-- Loop principal
+spawn(function()
+    while true do
+        buscarBrainrots()
+        FeedbackLabel.Text = "Último scan: "..os.date("%H:%M:%S")
+        wait(INTERVALO)
+    end
+end)
